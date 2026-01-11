@@ -1,7 +1,10 @@
+# ============================================
+# WINE DATASET STREAMLIT APP
+# ============================================
+
 import streamlit as st
 import numpy as np
 import pandas as pd
-import joblib
 
 from sklearn.datasets import load_wine
 from sklearn.model_selection import train_test_split
@@ -35,11 +38,11 @@ wine = load_wine()
 X = wine.data
 y = wine.target
 
-st.write("**Shape of X:**", X.shape)
-st.write("**Shape of y:**", y.shape)
-
 df = pd.DataFrame(X, columns=wine.feature_names)
 df["target"] = y
+
+st.write("**Shape of X:**", X.shape)
+st.write("**Shape of y:**", y.shape)
 
 st.subheader("First 5 Rows of Dataset")
 st.dataframe(df.head())
@@ -72,9 +75,6 @@ X_train, X_test, y_train, y_test = train_test_split(
     random_state=42
 )
 
-st.write("Training set shape:", X_train.shape)
-st.write("Testing set shape:", X_test.shape)
-
 # ============================================
 # c) PCA ANALYSIS
 # ============================================
@@ -84,20 +84,13 @@ pca_full = PCA()
 pca_full.fit(X_train)
 
 cumulative_variance = np.cumsum(pca_full.explained_variance_ratio_)
-
 components_95 = np.argmax(cumulative_variance >= 0.95) + 1
-components_99 = np.argmax(cumulative_variance >= 0.99) + 1
 
 st.write("Components needed for **95% variance:**", components_95)
-st.write("Components needed for **99% variance:**", components_99)
 
-# Apply PCA (95%)
 pca = PCA(n_components=0.95, random_state=42)
 X_train_pca = pca.fit_transform(X_train)
 X_test_pca = pca.transform(X_test)
-
-st.subheader("Explained Variance Ratio (95% PCA)")
-st.write(pca.explained_variance_ratio_)
 
 # ============================================
 # d) MODEL TRAINING & EVALUATION
@@ -117,41 +110,49 @@ for name, model in models.items():
     y_pred = model.predict(X_test_pca)
 
     acc = accuracy_score(y_test, y_pred)
-    cm = confusion_matrix(y_test, y_pred)
-
     results[name] = acc
 
-    st.subheader(f"{name}")
+    st.subheader(name)
     st.write("Accuracy:", acc)
-    st.write("Confusion Matrix:")
-    st.dataframe(cm)
+    st.dataframe(confusion_matrix(y_test, y_pred))
 
-# Best model
 best_model_name = max(results, key=results.get)
 best_model = models[best_model_name]
 
-st.success(f"✅ Best Performing Model: **{best_model_name}**")
-st.write("Justification: Highest test accuracy among all classifiers.")
+st.success(f"✅ Best Model: **{best_model_name}**")
 
 # ============================================
 # e) MODEL DEPLOYMENT & PREDICTION
 # ============================================
-st.header("e) Model Deployment – Wine Class Prediction")
+st.header("e) Wine Class Prediction (Improved Input UI)")
 
-st.write("Enter wine chemical properties to predict the wine class:")
+st.info("Use sliders to enter wine chemical properties (min & max from dataset).")
 
 feature_names = wine.feature_names
+feature_mins = df[feature_names].min()
+feature_maxs = df[feature_names].max()
+
 user_input = []
 
 for feature in feature_names:
-    value = st.number_input(feature, value=0.0)
+    value = st.slider(
+        label=feature,
+        min_value=float(feature_mins[feature]),
+        max_value=float(feature_maxs[feature]),
+        value=float(df[feature].mean())
+    )
     user_input.append(value)
 
-if st.button("Predict Wine Class"):
+if st.button("🍇 Predict Wine Class"):
     input_array = np.array(user_input).reshape(1, -1)
     input_scaled = scaler.transform(input_array)
     input_pca = pca.transform(input_scaled)
 
     prediction = best_model.predict(input_pca)[0]
+    class_name = wine.target_names[prediction]
 
-    st.success(f"🍇 Predicted Wine Class: **{prediction}**")
+    st.success(f"""
+    ### ✅ Prediction Result
+    - **Wine Class ID:** {prediction}
+    - **Wine Class Name:** 🍷 **{class_name}**
+    """)
